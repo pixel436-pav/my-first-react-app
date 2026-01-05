@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react'
+import { useDebounce } from 'react-use'
 
 import Search from './components/Search.jsx'
+import MovieCard from './components/MovieCard.jsx'
 
 const API_BASE_URL = 'http://www.omdbapi.com'
 
@@ -21,10 +23,20 @@ const App = () => {
   const [errorMessage,setErrorMessage] = useState('');
   const [movieList,setMovieList] = useState([]);
   const [isLoading,setIsLoading] = useState(false);
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
-  const fetchMovies = async (title='batman')=>{
+  // Debounce prevent the searchTerm to prevent form making too much requests
+  //by waiting for user to stop typing for 500ms
+
+  useDebounce(()=>setDebouncedSearchTerm(searchTerm),500,[searchTerm])
+
+  const fetchMovies = async ( query ='')=>{
+
+    setIsLoading(true);
+    setErrorMessage('');
+
     try {
-      const endpoint = `${API_BASE_URL}?apikey=${API_KEY}&s=${title}`;
+     const endpoint = `${API_BASE_URL}/?apikey=${API_KEY}&s=${encodeURIComponent(query)}`;
       const response = await fetch(endpoint)
 
      if(!response.ok) {
@@ -35,19 +47,29 @@ const App = () => {
     console.log(data)
 
     if(data.Response === 'False'){
-      setErrorMessage(data.Error || 'Failed to fetch movies')
+      setErrorMessage(data.Error || 'Failed to fetch movies');
+      setMovieList([]);
+      return;
     }
-
+    setMovieList(data.Search || 'Failed to fetch Movies')
     } catch (error) {
       console.error(`Error In fetching Movies: ${error}`)
       setErrorMessage('Error fetching movies. Please try again later.')
+    } finally{
+      setIsLoading(false);
     }
   }
   
+  // Load initial movies on mount
+  useEffect(() => {
+    fetchMovies('marvel'); // Load some default movies on first load
+  }, []);
 
-  useEffect(()=>{
-    fetchMovies();
-  },[])
+  useEffect(() => {
+    if (debouncedSearchTerm !== '') {
+      fetchMovies(debouncedSearchTerm);
+    }
+  }, [debouncedSearchTerm])
 
   return (
 
@@ -62,7 +84,10 @@ const App = () => {
         </header>
 
         <section className="all-movies">
-          <h2>All Movies</h2>
+          <h2 className='mt-[20px]' >All Movies</h2>
+          {isLoading ? ( <p className='text-white'>Loading...</p> ) : errorMessage ? ( <p className="text-red-500">{errorMessage}</p> ) : ( <ul>
+            {movieList.map(( movie )=>( <MovieCard key={movie.imdbID} movie={movie} />))}
+          </ul> )}
 
           {errorMessage && <p className="text-red-500">{errorMessage}</p> }
         </section>
